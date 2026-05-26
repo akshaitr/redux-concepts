@@ -1,4 +1,4 @@
-## Table of Contents
+# Table of Contents
 
 1. [The Mental Model: What Middleware Actually Is](#the-mental-model-what-middleware-actually-is)
 2. [The `dispatch` Pipeline](#the-dispatch-pipeline)
@@ -18,7 +18,7 @@
 
 ---
 
-## The Mental Model: What Middleware Actually Is
+# The Mental Model: What Middleware Actually Is
 
 Redux middleware is **a chain of functions that wrap `store.dispatch`**. Each middleware gets a chance to inspect, modify, delay, or replace an action before it reaches the reducer.
 
@@ -36,7 +36,7 @@ Three layers, each providing access to different scopes:
 
 The currying isn't aesthetic — it's how Redux composes middlewares into a chain. Each layer is "frozen" at the right time. Without currying, you'd have to pass everything to every call.
 
-### The chain
+## The chain
 
 If you have `[m1, m2, m3]`, the effective dispatch becomes:
 
@@ -59,7 +59,7 @@ That last bullet is the key insight — `store.dispatch` (the one captured in th
 
 ---
 
-## The `dispatch` Pipeline
+# The `dispatch` Pipeline
 
 Before middleware, `store.dispatch(action)`:
 
@@ -73,7 +73,7 @@ That's it. Synchronous, single-threaded, no async, no side effects.
 
 `applyMiddleware` wraps this with the middleware chain. After application, when you call `store.dispatch`, you're actually calling the *outermost middleware's* `action` handler. The original `dispatch` (the one that hits the reducer) is only reachable at the end of the chain.
 
-### Why this design
+## Why this design
 
 Redux's core stays pure — reducers are still `(state, action) => newState`, deterministic and testable. All the messy real-world stuff (async, logging, analytics, optimistic updates, conditional dispatch) lives in middleware, layered on top.
 
@@ -81,7 +81,7 @@ This is also why Redux DevTools time-travel works: replay any sequence of action
 
 ---
 
-## `applyMiddleware` — Reading the Source
+# `applyMiddleware` — Reading the Source
 
 The actual Redux source is ~20 lines. Worth reading once:
 
@@ -109,7 +109,7 @@ function applyMiddleware(...middlewares) {
 
 Three things worth noting:
 
-### 1. The `dispatch` indirection
+## 1. The `dispatch` indirection
 
 `middlewareAPI.dispatch` is defined as `(action, ...args) => dispatch(action, ...args)` — a wrapper around the variable `dispatch`, not a direct reference. This is deliberate.
 
@@ -119,7 +119,7 @@ By the time anyone calls `middlewareAPI.dispatch(action)`, the variable has been
 
 The error-throwing stub catches the case where a middleware tries to dispatch synchronously during its own setup — which is meaningless because the chain isn't built yet.
 
-### 2. `compose(...chain)`
+## 2. `compose(...chain)`
 
 `compose` is right-to-left function composition:
 
@@ -143,13 +143,13 @@ Working outside-in:
 
 The result is `m1`'s action handler, which is what becomes the new `store.dispatch`.
 
-### 3. The returned store
+## 3. The returned store
 
 `return { ...store, dispatch }` — Redux spreads the original store and overrides `dispatch`. `getState`, `subscribe`, `replaceReducer` are unchanged. This means middleware cannot intercept subscriptions or state reads — only dispatches.
 
 ---
 
-## Writing Middleware from Scratch
+# Writing Middleware from Scratch
 
 The classic logger:
 
@@ -170,7 +170,7 @@ Things to notice:
 - We read state *before* and *after* `next` — that's where the state actually changes
 - We return whatever `next` returns — so downstream callers (or other middleware) get the same return value
 
-### A middleware that swallows actions
+## A middleware that swallows actions
 
 ```js
 const blockTypes = blocklist => store => next => action => {
@@ -181,7 +181,7 @@ const blockTypes = blocklist => store => next => action => {
 
 Useful for feature flags, A/B test gating, etc.
 
-### A middleware that transforms actions
+## A middleware that transforms actions
 
 ```js
 const addTimestamp = store => next => action => {
@@ -192,7 +192,7 @@ const addTimestamp = store => next => action => {
 };
 ```
 
-### A middleware that dispatches new actions
+## A middleware that dispatches new actions
 
 ```js
 const crashReporter = store => next => action => {
@@ -207,7 +207,7 @@ const crashReporter = store => next => action => {
 
 Note `store.dispatch` here, not `next`. If we used `next`, the error action would skip middlewares above us — the logger wouldn't log it, analytics wouldn't track it. Using `store.dispatch` re-enters the chain at the top.
 
-### Async via promises
+## Async via promises
 
 This is essentially `redux-thunk` in two lines:
 
@@ -226,9 +226,9 @@ That's it. The entire library is ~10 lines. The reason saga exists is because th
 
 ---
 
-## Common Middleware Patterns
+# Common Middleware Patterns
 
-### Order matters
+## Order matters
 
 Middleware order determines the chain order. A typical chain:
 
@@ -246,7 +246,7 @@ Putting the logger *after* saga means you'd miss the original `FETCH_USER_REQUES
 
 Putting `crashReporter` outermost ensures errors from any other middleware are caught.
 
-### Why not just put async in reducers?
+## Why not just put async in reducers?
 
 You'd lose:
 - Determinism (reducers can't be replayed without side effects)
@@ -256,7 +256,7 @@ You'd lose:
 
 The whole point of Redux is that the reducer is pure. Async lives in middleware.
 
-### The `Symbol.observable` interop
+## The `Symbol.observable` interop
 
 Redux stores implement the Observable interop spec — `store[Symbol.observable]()` returns a minimal observable. Middlewares like `redux-observable` use this to bridge Redux to RxJS, so you can write epics as observable transformations of the action stream.
 
@@ -264,7 +264,7 @@ Not commonly needed, but if you see `redux-observable` in a codebase, that's the
 
 ---
 
-## Redux-Saga — Mental Model
+# Redux-Saga — Mental Model
 
 Saga is a middleware that runs **long-lived background processes** alongside your app. These processes are written as ES6 generator functions and communicate with Redux via *effects* — plain JS objects describing operations the middleware should perform.
 
@@ -284,11 +284,11 @@ The cost: a steeper learning curve, generator syntax that some teams find alien,
 
 ---
 
-## Generators — The Foundation
+# Generators — The Foundation
 
 Generators are the language feature sagas are built on. If they're hazy, the rest of saga won't click.
 
-### The basics
+## The basics
 
 ```js
 function* counter() {
@@ -306,7 +306,7 @@ gen.next(); // { value: undefined, done: true }
 
 Calling a generator function doesn't run the body — it returns an *iterator*. The body runs only when `.next()` is called, and it pauses at every `yield`. Calling `.next()` again resumes from where it stopped.
 
-### Two-way communication
+## Two-way communication
 
 The `value` argument to `.next(value)` becomes the result of the `yield` expression:
 
@@ -325,7 +325,7 @@ g.next(31);        // { value: 'Akshai is 31', done: true }
 
 This bidirectional flow is what makes generators useful for sagas. The saga `yield`s an instruction; the middleware sends back a result via `.next(result)`.
 
-### Throwing into a generator
+## Throwing into a generator
 
 ```js
 function* example() {
@@ -343,7 +343,7 @@ g.throw(new Error('boom')); // jumps to the catch block
 
 This is how sagas handle errors from async effects — the middleware calls `.throw()` on the generator when a yielded operation rejects.
 
-### `yield*` — delegation
+## `yield*` — delegation
 
 ```js
 function* sub() { yield 1; yield 2; }
@@ -357,13 +357,13 @@ function* main() {
 
 Sagas use this for composition — one saga can `yield*` another and inherit its behavior.
 
-### Why generators for sagas
+## Why generators for sagas
 
 A saga is essentially a coroutine — a function that can pause, yield control, and be resumed externally. Promises can't do this (you can't pause a `then` chain). `async/await` can't do this (you can't externally cancel an `await`). Only generators give the *middleware* control over execution.
 
 ---
 
-## Effects — Declarative Side Effects
+# Effects — Declarative Side Effects
 
 The saga yields **effect objects**, not actions. An effect is a plain JS object describing what the middleware should do:
 
@@ -389,7 +389,7 @@ The middleware interprets each effect type:
 - `FORK` → start a detached saga (non-blocking)
 - etc.
 
-### Why effects instead of direct calls?
+## Why effects instead of direct calls?
 
 If the saga did `const data = yield fetchUser(id)`, the saga would *actually call* `fetchUser` — making real network requests during tests. Worse, the test couldn't easily intercept it.
 
@@ -399,7 +399,7 @@ This is the same separation-of-concerns idea as React's render/commit split, or 
 
 ---
 
-## The Saga Middleware Internals
+# The Saga Middleware Internals
 
 Roughly, the middleware does this:
 
@@ -423,15 +423,15 @@ function createSagaMiddleware() {
 
 Two important details:
 
-### 1. `next(action)` runs BEFORE notifying sagas
+## 1. `next(action)` runs BEFORE notifying sagas
 
 The action hits the reducer first, then sagas waiting on `take` are notified. This means by the time your saga's `take` resolves, `getState()` already reflects the action. If it were the other way around, you'd see stale state.
 
-### 2. The saga channel
+## 2. The saga channel
 
 Internally, the middleware maintains a *channel* — a buffer of actions. When you `take('SOMETHING')`, the middleware registers your saga as a listener on this channel. When that action flows through middleware, listeners get notified and resume.
 
-### Running a saga
+## Running a saga
 
 When you call `sagaMiddleware.run(rootSaga)`:
 
@@ -443,7 +443,7 @@ When you call `sagaMiddleware.run(rootSaga)`:
 
 If the effect's operation rejects, the middleware calls `iterator.throw(error)` instead — which jumps into the saga's nearest `try/catch`.
 
-### Forks and the task tree
+## Forks and the task tree
 
 Every `fork` creates a child task. The parent saga gets a `Task` object (a handle to the child) and continues without waiting. Children run independently but are part of the parent's task tree.
 
@@ -453,9 +453,9 @@ This automatic lifecycle management is one of saga's biggest wins over thunk —
 
 ---
 
-## Effect-by-Effect Mechanics
+# Effect-by-Effect Mechanics
 
-### `take(pattern)` — wait for an action
+## `take(pattern)` — wait for an action
 
 ```js
 const action = yield take('LOGIN_SUCCESS');
@@ -467,7 +467,7 @@ The saga blocks until an action matching the pattern is dispatched. The matched 
 
 `take` only matches actions dispatched *after* the `take` is yielded. Earlier actions are missed.
 
-### `put(action)` — dispatch
+## `put(action)` — dispatch
 
 ```js
 yield put({ type: 'SHOW_NOTIFICATION', message: 'Saved' });
@@ -477,7 +477,7 @@ Dispatches the action. Goes through the full middleware chain — including saga
 
 `put` is non-blocking by default — the saga continues immediately. To wait for downstream effects, use the `resolve` channel pattern (rare).
 
-### `call(fn, ...args)` — call a function
+## `call(fn, ...args)` — call a function
 
 ```js
 const user = yield call(api.fetchUser, userId);
@@ -487,7 +487,7 @@ The middleware calls `fn(...args)`. If the result is a promise, the saga suspend
 
 `call` is what you use for any async work — fetch, axios, database access. Use it even for sync work when you want testability (assertions become trivial).
 
-### `fork(fn, ...args)` — non-blocking call
+## `fork(fn, ...args)` — non-blocking call
 
 ```js
 const task = yield fork(watcher);  // saga doesn't wait
@@ -497,13 +497,13 @@ Spawns the function as a child task and returns a `Task` object. The parent saga
 
 Use `fork` when you want a saga to run alongside others — typical for watchers (see below).
 
-### `spawn(fn, ...args)` — detached fork
+## `spawn(fn, ...args)` — detached fork
 
 Like `fork`, but the child is **detached** from the parent's task tree. If the parent is cancelled, the child is *not*. If the child crashes, the parent isn't affected.
 
 Use `spawn` for truly independent processes. Use `fork` when child failure or cancellation should propagate up.
 
-### `cancel(task)` — cancel a child
+## `cancel(task)` — cancel a child
 
 ```js
 yield cancel(task);
@@ -527,11 +527,11 @@ function* downloader() {
 
 `yield cancelled()` returns true inside a finally block if the task was cancelled (as opposed to finishing normally).
 
-### `cancelled()` — am I being cancelled?
+## `cancelled()` — am I being cancelled?
 
 Used in `finally` blocks to branch on cancellation vs normal completion (as above).
 
-### `select(selector, ...args)` — read store state
+## `select(selector, ...args)` — read store state
 
 ```js
 const userId = yield select(state => state.user.id);
@@ -541,7 +541,7 @@ Returns the result of `selector(state)`. Sync — no suspension.
 
 This is the saga equivalent of `useSelector`. Use it sparingly — heavy state reads in sagas can become hard to reason about, and most sagas should be driven by actions (which carry their own payload).
 
-### `takeEvery(pattern, saga)` — fork on every match
+## `takeEvery(pattern, saga)` — fork on every match
 
 ```js
 yield takeEvery('FETCH_USER', handleFetchUser);
@@ -558,7 +558,7 @@ while (true) {
 
 For every `FETCH_USER` action, spawn a new `handleFetchUser` task. Multiple can run concurrently — if the user clicks "fetch" 5 times, 5 fetches run in parallel.
 
-### `takeLatest(pattern, saga)` — cancel previous, fork new
+## `takeLatest(pattern, saga)` — cancel previous, fork new
 
 ```js
 yield takeLatest('FETCH_USER', handleFetchUser);
@@ -570,11 +570,11 @@ Perfect for search-as-you-type — each keystroke cancels the previous in-flight
 
 This is one of saga's killer features. The equivalent in thunk requires manual cancellation tokens, AbortControllers, or stale-response checks.
 
-### `takeLeading(pattern, saga)` — ignore while busy
+## `takeLeading(pattern, saga)` — ignore while busy
 
 Opposite of `takeLatest`. Once a handler is running, new matching actions are ignored until it completes. Good for "don't double-submit" patterns.
 
-### `throttle(ms, pattern, saga)` — rate-limit
+## `throttle(ms, pattern, saga)` — rate-limit
 
 ```js
 yield throttle(500, 'SCROLL', handleScroll);
@@ -582,7 +582,7 @@ yield throttle(500, 'SCROLL', handleScroll);
 
 Runs the saga at most once per `ms` milliseconds for the given pattern. The first matching action runs immediately; subsequent actions within the window are dropped (except the most recent, which runs at the end of the window).
 
-### `debounce(ms, pattern, saga)` — wait for quiet
+## `debounce(ms, pattern, saga)` — wait for quiet
 
 ```js
 yield debounce(500, 'INPUT_CHANGED', handleSearch);
@@ -590,7 +590,7 @@ yield debounce(500, 'INPUT_CHANGED', handleSearch);
 
 Waits `ms` ms of silence before firing. Useful for search input — wait until the user stops typing.
 
-### `delay(ms)` — sleep
+## `delay(ms)` — sleep
 
 ```js
 yield delay(1000);  // pause 1 second
@@ -598,7 +598,7 @@ yield delay(1000);  // pause 1 second
 
 Suspends the saga for the duration. Cancellable — if the saga is cancelled during the delay, the timer is cleared.
 
-### `all([...effects])` — wait for all
+## `all([...effects])` — wait for all
 
 ```js
 const [user, posts, comments] = yield all([
@@ -612,7 +612,7 @@ Runs effects in parallel. Resolves when all complete. If any rejects, all are ca
 
 Equivalent to `Promise.all`, but for effects.
 
-### `race({...effects})` — first one wins
+## `race({...effects})` — first one wins
 
 ```js
 const { posts, timeout } = yield race({
@@ -631,9 +631,9 @@ Classic uses: timeouts, cancellation tokens, "wait for either of these actions."
 
 ---
 
-## Concurrency Patterns
+# Concurrency Patterns
 
-### Watcher / worker
+## Watcher / worker
 
 The canonical saga structure:
 
@@ -663,7 +663,7 @@ function* rootSaga() {
 - **Watcher** — runs forever, listens for actions, forks workers
 - **Root** — composes all watchers, started once at app boot
 
-### Search-as-you-type
+## Search-as-you-type
 
 ```js
 function* searchWorker(action) {
@@ -681,7 +681,7 @@ function* watchSearch() {
 
 A user typing "react" produces 5 actions, but only the last `searchWorker` runs to completion. The others are cancelled during their `delay` (before any API call) or during the `call` (the in-flight request is abandoned — though the actual HTTP request continues unless you wire up an AbortController).
 
-### Authentication flow
+## Authentication flow
 
 ```js
 function* authFlow() {
@@ -705,7 +705,7 @@ function* authFlow() {
 
 This is impossible to express cleanly with thunks — the state machine of "waiting for login → logging in → logged in → waiting for logout" lives in a single readable function.
 
-### Polling with cancellation
+## Polling with cancellation
 
 ```js
 function* pollWorker() {
@@ -733,7 +733,7 @@ function* watchPolling() {
 
 The polling loop is cancellable mid-delay. When `STOP_POLLING` fires, `cancel(task)` interrupts the worker — even if it's mid-fetch or mid-delay.
 
-### Retry with backoff
+## Retry with backoff
 
 ```js
 function* fetchWithRetry(action) {
@@ -754,15 +754,15 @@ Linear, readable, no callback hell, no nested promises.
 
 ---
 
-## Channels — The Low-Level Primitive
+# Channels — The Low-Level Primitive
 
 Internally, saga is built on **channels** — message queues that decouple producers from consumers. You usually don't touch them directly, but understanding them clarifies how the middleware works.
 
-### Action channel
+## Action channel
 
 The default channel that emits every Redux action. `take` (without a custom channel argument) listens on this channel.
 
-### `actionChannel(pattern, buffer)` — buffered action listener
+## `actionChannel(pattern, buffer)` — buffered action listener
 
 By default, if `FETCH_USER` is dispatched twice in quick succession and your saga is processing the first one, the second is *missed*. The saga only resumes on the next `take`.
 
@@ -781,7 +781,7 @@ function* watchRequests() {
 
 Useful for job queues, ordered processing, request throttling.
 
-### `eventChannel(subscribe)` — bridge to external sources
+## `eventChannel(subscribe)` — bridge to external sources
 
 For non-Redux event sources (WebSocket, server-sent events, browser APIs):
 
@@ -811,9 +811,9 @@ Channels turn callback-based APIs into saga-friendly streams.
 
 ---
 
-## Testing Sagas
+# Testing Sagas
 
-### Step-through testing (classic)
+## Step-through testing (classic)
 
 ```js
 import { call, put } from 'redux-saga/effects';
@@ -835,7 +835,7 @@ Pros: zero setup, no mocks, completely deterministic.
 
 Cons: brittle — if you reorder yields or add a new one, every test downstream breaks. Couples tests to implementation order.
 
-### Integration testing with `redux-saga-test-plan`
+## Integration testing with `redux-saga-test-plan`
 
 ```js
 import { expectSaga } from 'redux-saga-test-plan';
@@ -852,13 +852,13 @@ You provide stub values for specific calls, then assert that certain effects wer
 
 Strongly preferred for non-trivial sagas.
 
-### Testing forks and cancellation
+## Testing forks and cancellation
 
 `redux-saga-test-plan` handles these too — you can assert on `fork`, `cancel`, simulate actions arriving, etc. For most teams, this is the right testing layer.
 
 ---
 
-## Saga vs Thunk vs RTK Query
+# Saga vs Thunk vs RTK Query
 
 | | **Thunk** | **Saga** | **RTK Query** |
 |---|---|---|---|
@@ -872,7 +872,7 @@ Strongly preferred for non-trivial sagas.
 | Bundle size | ~200 bytes | ~14 KB | ~9 KB |
 | Learning curve | Low | High | Low–Medium |
 
-### When to choose what
+## When to choose what
 
 **RTK Query** — data fetching is most of your async work, you want caching, invalidation, polling, and optimistic updates without writing them yourself. This is the default choice for most new apps.
 
@@ -884,9 +884,9 @@ Strongly preferred for non-trivial sagas.
 
 ---
 
-## Common Pitfalls
+# Common Pitfalls
 
-### `put` doesn't wait
+## `put` doesn't wait
 
 ```js
 yield put({ type: 'SHOW_LOADER' });
@@ -896,7 +896,7 @@ const data = yield call(api.fetch);
 
 `put` returns immediately. The dispatch happens, the reducer runs, but the component re-render is async. If your saga depends on the resulting state, use `select` *after* a yield boundary.
 
-### Forgetting to `fork` watchers
+## Forgetting to `fork` watchers
 
 ```js
 function* rootSaga() {
@@ -907,13 +907,13 @@ function* rootSaga() {
 
 Watchers are infinite loops. Yielding directly blocks the parent. Use `fork` (or `all([fork(watchA), fork(watchB)])`) to start them in parallel.
 
-### `takeEvery` vs `takeLatest` confusion
+## `takeEvery` vs `takeLatest` confusion
 
 `takeEvery` runs handlers concurrently. If your handler isn't idempotent (e.g., it increments a counter, or its order matters), you'll get bugs.
 
 `takeLatest` cancels in-flight handlers — fine for "I only care about the latest result," but **wrong** if each action represents a distinct unit of work that must complete (e.g., individual save operations).
 
-### Sharing state via module-level variables
+## Sharing state via module-level variables
 
 ```js
 let cachedToken;
@@ -925,7 +925,7 @@ function* loginSaga() {
 
 Sagas don't have isolated state. Module-level variables are shared across all saga instances and across hot reloads. Use Redux state or pass values via action payloads.
 
-### Infinite saga loops
+## Infinite saga loops
 
 ```js
 function* badSaga() {
@@ -937,7 +937,7 @@ function* badSaga() {
 
 Without a `take`, `call`, or `delay` to suspend, this is a tight infinite loop. The middleware will hang. Always include a yield that suspends.
 
-### `select` returning new references
+## `select` returning new references
 
 ```js
 const items = yield select(state => state.list.filter(x => x.active));
@@ -947,17 +947,17 @@ const items = yield select(state => state.list.filter(x => x.active));
 
 Sagas don't have React's referential-equality re-render trap, but if you use `select` in loops with comparisons, the same caution applies. Memoize selectors or extract specific values.
 
-### Forgetting to handle errors
+## Forgetting to handle errors
 
 A saga that throws an uncaught error stops *that saga*, but other sagas keep running. The user might see "nothing happened" with no indication of failure. Always wrap risky operations in `try/catch` and dispatch failure actions.
 
-### Tests that don't reflect production
+## Tests that don't reflect production
 
 Step-through tests assert that you yield `call(api.fetchUser, 5)` — but they don't verify `api.fetchUser` does what you think. Pair step-through tests with at least one integration test (using `expectSaga` or a full Redux store) per saga.
 
 ---
 
-## Further Reading
+# Further Reading
 
 - [Redux source — applyMiddleware](https://github.com/reduxjs/redux/blob/master/src/applyMiddleware.ts) — ~50 lines, worth reading once
 - [Redux-Saga docs](https://redux-saga.js.org/) — surprisingly thorough, especially the "Advanced" section
